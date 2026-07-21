@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Conducting</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #f2ede3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #2b2620;
+    padding: 30px 0;
+  }
+  #mainRow {
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+    margin-top: 20px;
+  }
+  #rightPanel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 { font-weight: 300; letter-spacing: 2px; margin-bottom: 20px; color: #6b3f1d; }
+
+  #folderBtn {
+    padding: 12px 24px;
+    font-size: 14px;
+    border: none;
+    border-radius: 30px;
+    background: #8b5a2b;
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+    margin-bottom: 20px;
+  }
+  #folderBtn:hover { transform: scale(1.05); }
+
+  .container {
+    position: relative;
+    width: 480px;
+    height: 360px;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(43,38,32,0.15);
+  }
+  video, canvas { position: absolute; top: 0; left: 0; transform: scaleX(-1); }
+
+  #player {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    width: 480px;
+    margin-top: 18px;
+    margin-bottom: 24px;
+  }
+  #trackName { font-size: 15px; color: #2b2620; margin-bottom: 10px; letter-spacing: 0.3px; }
+
+  #transportRow {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    margin-bottom: 10px;
+  }
+  .transportBtn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #6b3f1d;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #playPauseBtn {
+    background: #2b2620;
+    color: #f2ede3;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    border: none; cursor: pointer;
+    transition: transform 0.1s ease;
+  }
+  #playPauseBtn:hover { transform: scale(1.08); }
+
+  #progressRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    font-family: monospace;
+    font-size: 11px;
+    color: #8b7355;
+  }
+  #progressWrap {
+    flex: 1;
+    height: 4px;
+    background: rgba(43,38,32,0.12);
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  #progressBar {
+    height: 100%; width: 0%;
+    background: #8b5a2b;
+    border-radius: 4px;
+  }
+  #progressWrap:hover #progressBar { background: #c9a76b; }
+
+  #playlist {
+    width: 480px;
+    margin-top: 10px;
+    background: rgba(43,38,32,0.04);
+    border-radius: 12px;
+    overflow: hidden;
+    padding: 6px;
+    display: none;
+  }
+  .track-item {
+    padding: 10px 16px;
+    font-size: 14px;
+    color: #4a4038;
+    cursor: default;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    transition: background 0.15s ease;
+  }
+  .track-item.active {
+    background: rgba(139, 90, 43, 0.15);
+    color: #2b2620;
+    font-weight: 600;
+  }
+  .track-number { width: 18px; color: #a8927a; font-size: 12px; }
+  .track-item.active .track-number { color: #8b5a2b; }
+
+  .stats {
+    margin-top: 18px;
+    display: flex;
+    gap: 14px;
+    font-family: monospace;
+    font-size: 14px;
+    background: rgba(43,38,32,0.05);
+    padding: 12px 22px;
+    border-radius: 12px;
+    justify-content: center;
+  }
+  .stat-group {
+    display: flex;
+    gap: 24px;
+    padding: 0 10px;
+  }
+  .stat-group + .stat-group {
+    border-left: 1px solid rgba(43,38,32,0.15);
+    padding-left: 24px;
+  }
+  .stat { text-align: center; }
+  .stat .label { color: #8b7355; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+  .stat .value { font-size: 18px; color: #2b2620; margin-top: 2px; }
+
+  #beatPulse {
+    position: absolute; top: 10px; right: 10px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #8b5a2b; opacity: 0.3;
+    transition: transform 0.1s ease, opacity 0.1s ease;
+  }
+  #beatPulse.pulse { opacity: 1; transform: scale(1.8); }
+
+  .swipeArrow {
+    position: absolute; top: 50%; font-size: 40px; color: #2b2620;
+    opacity: 0; transition: opacity 0.2s ease;
+    transform: translateY(-50%);
+  }
+  #swipeArrowL { left: 10px; }
+  #swipeArrowR { right: 10px; }
+  .swipeArrow.show { opacity: 0.9; }
+</style>
+</head>
+<body>
+
+<h1>You're the conductor!</h1>
+
+<div id="mainRow">
+  <div id="leftPanel">
+    <div class="container">
+      <video id="video" width="480" height="360" autoplay muted playsinline></video>
+      <canvas id="canvas" width="480" height="360"></canvas>
+      <div id="beatPulse"></div>
+      <div id="swipeArrowL" class="swipeArrow">‹</div>
+      <div id="swipeArrowR" class="swipeArrow">›</div>
+      <audio id="music" crossorigin="anonymous"></audio>
+    </div>
+
+    <div class="stats">
+      <div class="stat-group">
+        <div class="stat"><div class="label">BPM</div><div class="value" id="bpm">--</div></div>
+        <div class="stat"><div class="label">Tempo</div><div class="value" id="rate">1.00</div></div>
+      </div>
+      <div class="stat-group">
+        <div class="stat"><div class="label">Spread</div><div class="value" id="amp">0.00</div></div>
+        <div class="stat"><div class="label">Volume</div><div class="value" id="vol">1.00</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="rightPanel">
+    <button id="folderBtn">Choose Music</button>
+
+    <div id="player">
+      <div id="trackName">No track loaded</div>
+      <div id="transportRow">
+        <button class="transportBtn" id="prevBtn">⏮</button>
+        <button id="playPauseBtn">▶</button>
+        <button class="transportBtn" id="nextBtn">⏭</button>
+      </div>
+      <div id="progressRow">
+        <span id="currentTime">0:00</span>
+        <div id="progressWrap"><div id="progressBar"></div></div>
+        <span id="duration">0:00</span>
+      </div>
+    </div>
+
+    <div id="playlist"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+<script>
+const videoElement = document.getElementById('video');
+const canvasElement = document.getElementById('canvas');
+const canvasCtx = canvasElement.getContext('2d');
+const bpmDisplay = document.getElementById('bpm');
+const rateDisplay = document.getElementById('rate');
+const ampDisplay = document.getElementById('amp');
+const volDisplay = document.getElementById('vol');
+const musicEl = document.getElementById('music');
+const folderBtn = document.getElementById('folderBtn');
+const beatPulse = document.getElementById('beatPulse');
+const playerEl = document.getElementById('player');
+const trackNameEl = document.getElementById('trackName');
+const playPauseBtn = document.getElementById('playPauseBtn');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const progressBar = document.getElementById('progressBar');
+const progressWrap = document.getElementById('progressWrap');
+const currentTimeEl = document.getElementById('currentTime');
+const durationEl = document.getElementById('duration');
+const playlistEl = document.getElementById('playlist');
+const swipeArrowL = document.getElementById('swipeArrowL');
+const swipeArrowR = document.getElementById('swipeArrowR');
+
+let playlist = [];
+let currentTrack = 0;
+let audioCtx, gainNode, sourceNode;
+let playlists = {};
+
+function formatTime(sec) {
+  if (isNaN(sec)) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+const DB_NAME = 'conductorDB';
+const STORE_NAME = 'handles';
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE_NAME);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveFolderHandle(handle) {
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  tx.objectStore(STORE_NAME).put(handle, 'musicFolder');
+}
+
+async function loadFolderHandle() {
+  const db = await openDB();
+  return new Promise((resolve) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).get('musicFolder');
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => resolve(null);
+  });
+}
+
+async function verifyPermission(handle) {
+  const opts = { mode: 'read' };
+  if ((await handle.queryPermission(opts)) === 'granted') return true;
+  if ((await handle.requestPermission(opts)) === 'granted') return true;
+  return false;
+}
+
+async function scanFolder(rootHandle) {
+  playlists = {};
+  const singles = [];
+
+  for await (const entry of rootHandle.values()) {
+    if (entry.kind === 'directory') {
+      const tracks = [];
+      for await (const fileEntry of entry.values()) {
+        if (fileEntry.kind === 'file' && fileEntry.name.toLowerCase().endsWith('.mp3')) {
+          const file = await fileEntry.getFile();
+          const url = URL.createObjectURL(file);
+          tracks.push({ name: fileEntry.name.replace(/\.mp3$/i, ''), url });
+        }
+      }
+      if (tracks.length > 0) playlists[entry.name] = tracks;
+
+    } else if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.mp3')) {
+      const file = await entry.getFile();
+      const url = URL.createObjectURL(file);
+      singles.push({ name: entry.name.replace(/\.mp3$/i, ''), url });
+    }
+  }
+
+  const folderNames = Object.keys(playlists);
+  if (folderNames.length > 0) {
+    playlist = playlists[folderNames[0]];
+  } else {
+    playlist = singles;
+  }
+  currentTrack = 0;
+
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    sourceNode = audioCtx.createMediaElementSource(musicEl);
+    gainNode = audioCtx.createGain();
+    sourceNode.connect(gainNode).connect(audioCtx.destination);
+  }
+
+  loadTrack(currentTrack);
+  musicEl.play();
+  playerEl.style.display = 'flex';
+}
+
+folderBtn.addEventListener('click', async () => {
+  try {
+    const rootHandle = await window.showDirectoryPicker();
+    await saveFolderHandle(rootHandle);
+    await scanFolder(rootHandle);
+    folderBtn.textContent = '📁 Change Folder';
+  } catch (err) {
+    console.log('Folder selection cancelled or failed', err);
+  }
+});
+
+(async () => {
+  const savedHandle = await loadFolderHandle();
+  if (savedHandle) {
+    const ok = await verifyPermission(savedHandle);
+    if (ok) {
+      folderBtn.textContent = '📁 Change Folder';
+      await scanFolder(savedHandle);
+    }
+  }
+})();
+
+function renderPlaylist() {
+  playlistEl.style.display = 'block';
+  playlistEl.innerHTML = '';
+
+  playlist.forEach((track, i) => {
+    const item = document.createElement('div');
+    item.className = 'track-item' + (i === currentTrack ? ' active' : '');
+    item.innerHTML = `<span class="track-number">${i + 1}</span><span>${track.name}</span>`;
+    playlistEl.appendChild(item);
+  });
+}
+
+function loadTrack(index) {
+  musicEl.src = playlist[index].url;
+  trackNameEl.textContent = playlist[index].name;
+  renderPlaylist();
+  updatePlayPauseIcon();
+}
+
+function nextTrack(fromGesture) {
+  if (playlist.length === 0) return;
+  currentTrack = (currentTrack + 1) % playlist.length;
+  loadTrack(currentTrack);
+  musicEl.play();
+  if (fromGesture) flashArrow(swipeArrowR);
+}
+
+function prevTrack(fromGesture) {
+  if (playlist.length === 0) return;
+  currentTrack = (currentTrack - 1 + playlist.length) % playlist.length;
+  loadTrack(currentTrack);
+  musicEl.play();
+  if (fromGesture) flashArrow(swipeArrowL);
+}
+
+function flashArrow(el) {
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 300);
+}
+
+function updatePlayPauseIcon() {
+  playPauseBtn.textContent = musicEl.paused ? '▶' : '⏸';
+}
+
+playPauseBtn.addEventListener('click', () => {
+  musicEl.paused ? musicEl.play() : musicEl.pause();
+});
+musicEl.addEventListener('play', updatePlayPauseIcon);
+musicEl.addEventListener('pause', updatePlayPauseIcon);
+
+prevBtn.addEventListener('click', () => prevTrack(false));
+nextBtn.addEventListener('click', () => nextTrack(false));
+
+musicEl.addEventListener('timeupdate', () => {
+  if (musicEl.duration) {
+    progressBar.style.width = `${(musicEl.currentTime / musicEl.duration) * 100}%`;
+    currentTimeEl.textContent = formatTime(musicEl.currentTime);
+    durationEl.textContent = formatTime(musicEl.duration);
+  }
+});
+
+progressWrap.addEventListener('click', (e) => {
+  const rect = progressWrap.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  if (musicEl.duration) musicEl.currentTime = pct * musicEl.duration;
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    musicEl.paused ? musicEl.play() : musicEl.pause();
+  }
+});
+
+function smooth(current, target, factor = 0.1) {
+  return current + (target - current) * factor;
+}
+
+let prevY = null;
+let movingDown = false;
+let lastBeatTime = null;
+let smoothedRate = 1.0;
+let beatIntervals = [];
+
+let swipeHistory = [];
+let lastSwipeTime = 0;
+
+let smoothedVol = 1.0;
+
+const hands = new Hands({
+  locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+});
+
+hands.setOptions({
+  maxNumHands: 2,
+  modelComplexity: 0,
+  minDetectionConfidence: 0.6,
+  minTrackingConfidence: 0.6
+});
+
+hands.onResults(onResults);
+
+function dist(a, b) {
+  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+}
+
+function onResults(results) {
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+  if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+    const now = performance.now();
+
+    results.multiHandLandmarks.forEach((landmarks, i) => {
+      drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: 'rgba(139,90,43,0.8)', lineWidth: 2 });
+      drawLandmarks(canvasCtx, landmarks, { color: '#6b3f1d', radius: 3 });
+
+      const label = results.multiHandedness[i].label;
+      const wrist = landmarks[0];
+
+      if (label === 'Left') {
+        if (prevY !== null) {
+          const dy = wrist.y - prevY;
+          if (dy > 0.01) {
+            movingDown = true;
+          } else if (dy < -0.01 && movingDown) {
+            movingDown = false;
+            if (lastBeatTime !== null) {
+              const interval = (now - lastBeatTime) / 1000;
+              if (interval > 0.15 && interval < 2.5) {
+                beatIntervals.push(interval);
+                if (beatIntervals.length > 4) beatIntervals.shift();
+                const avgInterval = beatIntervals.reduce((a, b) => a + b, 0) / beatIntervals.length;
+                const bpm = 60 / avgInterval;
+                bpmDisplay.textContent = bpm.toFixed(0);
+                const targetRate = Math.min(Math.max(bpm / 100, 0.5), 2.0);
+                smoothedRate = smooth(smoothedRate, targetRate, 0.3);
+                musicEl.playbackRate = smoothedRate;
+                rateDisplay.textContent = smoothedRate.toFixed(2);
+              }
+            }
+            lastBeatTime = now;
+            beatPulse.classList.add('pulse');
+            setTimeout(() => beatPulse.classList.remove('pulse'), 120);
+          }
+        }
+        prevY = wrist.y;
+
+        swipeHistory.push({ x: wrist.x, t: now });
+        swipeHistory = swipeHistory.filter(p => now - p.t < 600);
+
+        if (now - lastSwipeTime > 1000 && swipeHistory.length > 2) {
+          const xs = swipeHistory.map(p => p.x);
+          const range = Math.max(...xs) - Math.min(...xs);
+          if (range > 0.5) {
+            const first = swipeHistory[0].x;
+            const last = swipeHistory[swipeHistory.length - 1].x;
+            if (last > first) {
+              nextTrack(true);
+            } else {
+              prevTrack(true);
+            }
+            lastSwipeTime = now;
+            swipeHistory = [];
+          }
+        }
+
+      } else {
+        const thumb = landmarks[4], index = landmarks[8], middle = landmarks[12], ring = landmarks[16], pinky = landmarks[20];
+        const spread = dist(thumb, index) + dist(index, middle) + dist(middle, ring) + dist(ring, pinky);
+        ampDisplay.textContent = spread.toFixed(2);
+
+        const minSpread = 0.05, maxSpread = 0.5;
+        const minVol = 0.05, maxVol = 1.0;
+        const clamped = Math.min(Math.max(spread, minSpread), maxSpread);
+        const targetVol = minVol + (clamped - minSpread) / (maxSpread - minSpread) * (maxVol - minVol);
+
+        smoothedVol = smooth(smoothedVol, targetVol, 0.08);
+        if (gainNode) gainNode.gain.value = smoothedVol;
+        volDisplay.textContent = smoothedVol.toFixed(2);
+      }
+    });
+  }
+
+  canvasCtx.restore();
+}
+
+const camera = new Camera(videoElement, {
+  onFrame: async () => { await hands.send({ image: videoElement }); },
+  width: 480,
+  height: 360
+});
+camera.start();
+</script>
+</body>
+</html>

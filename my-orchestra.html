@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Step 1: Hand Tracking</title>
+<style>
+  body { margin: 0; background: #111; display: flex; justify-content: center; align-items: center; height: 100vh; }
+  .container { position: relative; }
+  video, canvas { position: absolute; top: 0; left: 0; transform: scaleX(-1); } /* mirror so it feels natural */
+  #info { position: absolute; bottom: -40px; left: 0; color: #0f0; font-family: monospace; }
+</style>
+</head>
+<body>
+<div class="container">
+  <video id="video" width="480" height="360" autoplay muted playsinline></video>
+  <canvas id="canvas" width="480" height="360"></canvas>
+  <div id="info">Wrist speed: <span id="speed">0</span></div>
+</div>
+
+<!-- MediaPipe Hands + camera/drawing utilities, loaded from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+<script>
+const videoElement = document.getElementById('video');
+const canvasElement = document.getElementById('canvas');
+const canvasCtx = canvasElement.getContext('2d');
+const speedDisplay = document.getElementById('speed');
+
+let prevWrist = null;
+let prevTime = null;
+
+const hands = new Hands({
+  locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+});
+
+hands.setOptions({
+  maxNumHands: 1,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.6,
+  minTrackingConfidence: 0.6
+});
+
+hands.onResults(onResults);
+
+function onResults(results) {
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+  if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+    const now = performance.now();
+
+    results.multiHandLandmarks.forEach((landmarks) => {
+      drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+      drawLandmarks(canvasCtx, landmarks, { color: '#FF0000', radius: 3 });
+
+      const wrist = landmarks[0];
+
+      if (prevWrist && prevTime) {
+        const dx = wrist.x - prevWrist.x;
+        const dy = wrist.y - prevWrist.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const dt = (now - prevTime) / 1000;
+        const speed = dist / dt;
+
+        speedDisplay.textContent = speed.toFixed(2);
+      }
+
+      prevWrist = wrist;
+      prevTime = now;
+    });
+  }
+
+  canvasCtx.restore();
+}
+
+const camera = new Camera(videoElement, {
+  onFrame: async () => { await hands.send({ image: videoElement }); },
+  width: 480,
+  height: 360
+});
+camera.start();
+</script>
+</body>
+</html>

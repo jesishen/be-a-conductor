@@ -22,6 +22,11 @@
     align-items: flex-start;
     margin-top: 20px;
   }
+  #leftPanel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
   #rightPanel {
     display: flex;
     flex-direction: column;
@@ -29,8 +34,13 @@
   }
   h1 { font-weight: 300; letter-spacing: 2px; margin-bottom: 20px; color: #6b3f1d; }
 
-  #folderBtn {
-    padding: 12px 24px;
+  #albumChoices {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .albumBtn {
+    padding: 12px 20px;
     font-size: 14px;
     border: none;
     border-radius: 30px;
@@ -38,9 +48,8 @@
     color: #fff;
     cursor: pointer;
     transition: transform 0.15s ease;
-    margin-bottom: 20px;
   }
-  #folderBtn:hover { transform: scale(1.05); }
+  .albumBtn:hover { transform: scale(1.05); }
 
   .container {
     position: relative;
@@ -143,6 +152,19 @@
   .track-number { width: 18px; color: #a8927a; font-size: 12px; }
   .track-item.active .track-number { color: #8b5a2b; }
 
+  #changeAlbumBtn {
+    margin-bottom: 12px;
+    padding: 8px 18px;
+    font-size: 13px;
+    border: none;
+    border-radius: 20px;
+    background: rgba(43,38,32,0.08);
+    color: #6b3f1d;
+    cursor: pointer;
+    display: none;
+  }
+  #changeAlbumBtn:hover { background: rgba(43,38,32,0.14); }
+
   .stats {
     margin-top: 18px;
     display: flex;
@@ -152,6 +174,7 @@
     background: rgba(43,38,32,0.05);
     padding: 12px 22px;
     border-radius: 12px;
+    width: 480px;
     justify-content: center;
   }
   .stat-group {
@@ -187,7 +210,7 @@
 </head>
 <body>
 
-<h1>You're the conductor!</h1>
+<h1>you're the conductor!</h1>
 
 <div id="mainRow">
   <div id="leftPanel">
@@ -213,7 +236,12 @@
   </div>
 
   <div id="rightPanel">
-    <button id="folderBtn">Choose Music</button>
+    <div id="albumChoices">
+      <button class="albumBtn" data-album="classical">🎻 classical music</button>
+      <button class="albumBtn" data-album="olivia rodrigo">💔 you seem pretty sad for a girl in love</button>
+    </div>
+
+    <button id="changeAlbumBtn">🔁 Change Album</button>
 
     <div id="player">
       <div id="trackName">No track loaded</div>
@@ -246,7 +274,6 @@ const rateDisplay = document.getElementById('rate');
 const ampDisplay = document.getElementById('amp');
 const volDisplay = document.getElementById('vol');
 const musicEl = document.getElementById('music');
-const folderBtn = document.getElementById('folderBtn');
 const beatPulse = document.getElementById('beatPulse');
 const playerEl = document.getElementById('player');
 const trackNameEl = document.getElementById('trackName');
@@ -260,11 +287,12 @@ const durationEl = document.getElementById('duration');
 const playlistEl = document.getElementById('playlist');
 const swipeArrowL = document.getElementById('swipeArrowL');
 const swipeArrowR = document.getElementById('swipeArrowR');
+const albumChoicesEl = document.getElementById('albumChoices');
+const changeAlbumBtn = document.getElementById('changeAlbumBtn');
 
 let playlist = [];
 let currentTrack = 0;
 let audioCtx, gainNode, sourceNode;
-let playlists = {};
 
 function formatTime(sec) {
   if (isNaN(sec)) return '0:00';
@@ -273,105 +301,60 @@ function formatTime(sec) {
   return `${m}:${s}`;
 }
 
-const DB_NAME = 'conductorDB';
-const STORE_NAME = 'handles';
+const albums = {
+  classical: [
+    { name: "Chopin Nocturne Op.9 No.2", url: "music/classical music/Chopin Nocturne Op.9 No.2.mp3" },
+    { name: "Chopin Étude in A minor Op. 25 No. 11", url: "music/classical music/Chopin Étude in A minor Op. 25 No. 11.mp3" },
+    { name: "Debussy Arabesque No.1", url: "music/classical music/Debussy Arabesque No.1.mp3" },
+    { name: "Vivaldi Allegro Op.8 No.4 F Minor", url: "music/classical music/Vivaldi Allegro Op.8 No.4 F Minor.mp3" }
+  ],
+  "olivia rodrigo": [
+    { name: "begged", url: "music/you seem pretty sad for a girl in love/begged.mp3" },
+    { name: "cigarette smoke", url: "music/you seem pretty sad for a girl in love/cigarette smoke.mp3" },
+    { name: "drop dead", url: "music/you seem pretty sad for a girl in love/drop dead.mp3" },
+    { name: "expectations", url: "music/you seem pretty sad for a girl in love/expectations.mp3" },
+    { name: "honeybee", url: "music/you seem pretty sad for a girl in love/honeybee.mp3" },
+    { name: "less", url: "music/you seem pretty sad for a girl in love/less.mp3" },
+    { name: "maggots for brains", url: "music/you seem pretty sad for a girl in love/maggots for brains.mp3" },
+    { name: "my way", url: "music/you seem pretty sad for a girl in love/my way.mp3" },
+    { name: "purple", url: "music/you seem pretty sad for a girl in love/purple.mp3" },
+    { name: "stupid song", url: "music/you seem pretty sad for a girl in love/stupid song.mp3" },
+    { name: "the cure", url: "music/you seem pretty sad for a girl in love/the cure.mp3" },
+    { name: "u + me = <3", url: "music/you seem pretty sad for a girl in love/u me.mp3" },
+    { name: "whats wrong with me", url: "music/you seem pretty sad for a girl in love/whats wrong with me.mp3" }
+  ]
+};
 
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE_NAME);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+function showAlbumChoices() {
+  playerEl.style.display = 'none';
+  playlistEl.style.display = 'none';
+  changeAlbumBtn.style.display = 'none';
+  albumChoicesEl.style.display = 'flex';
+  musicEl.pause();
 }
 
-async function saveFolderHandle(handle) {
-  const db = await openDB();
-  const tx = db.transaction(STORE_NAME, 'readwrite');
-  tx.objectStore(STORE_NAME).put(handle, 'musicFolder');
-}
+changeAlbumBtn.addEventListener('click', showAlbumChoices);
 
-async function loadFolderHandle() {
-  const db = await openDB();
-  return new Promise((resolve) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const req = tx.objectStore(STORE_NAME).get('musicFolder');
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => resolve(null);
-  });
-}
+document.querySelectorAll('.albumBtn').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const key = btn.dataset.album;
+    playlist = albums[key];
+    currentTrack = 0;
 
-async function verifyPermission(handle) {
-  const opts = { mode: 'read' };
-  if ((await handle.queryPermission(opts)) === 'granted') return true;
-  if ((await handle.requestPermission(opts)) === 'granted') return true;
-  return false;
-}
-
-async function scanFolder(rootHandle) {
-  playlists = {};
-  const singles = [];
-
-  for await (const entry of rootHandle.values()) {
-    if (entry.kind === 'directory') {
-      const tracks = [];
-      for await (const fileEntry of entry.values()) {
-        if (fileEntry.kind === 'file' && fileEntry.name.toLowerCase().endsWith('.mp3')) {
-          const file = await fileEntry.getFile();
-          const url = URL.createObjectURL(file);
-          tracks.push({ name: fileEntry.name.replace(/\.mp3$/i, ''), url });
-        }
-      }
-      if (tracks.length > 0) playlists[entry.name] = tracks;
-
-    } else if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.mp3')) {
-      const file = await entry.getFile();
-      const url = URL.createObjectURL(file);
-      singles.push({ name: entry.name.replace(/\.mp3$/i, ''), url });
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      sourceNode = audioCtx.createMediaElementSource(musicEl);
+      gainNode = audioCtx.createGain();
+      sourceNode.connect(gainNode).connect(audioCtx.destination);
     }
-  }
 
-  const folderNames = Object.keys(playlists);
-  if (folderNames.length > 0) {
-    playlist = playlists[folderNames[0]];
-  } else {
-    playlist = singles;
-  }
-  currentTrack = 0;
-
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    sourceNode = audioCtx.createMediaElementSource(musicEl);
-    gainNode = audioCtx.createGain();
-    sourceNode.connect(gainNode).connect(audioCtx.destination);
-  }
-
-  loadTrack(currentTrack);
-  musicEl.play();
-  playerEl.style.display = 'flex';
-}
-
-folderBtn.addEventListener('click', async () => {
-  try {
-    const rootHandle = await window.showDirectoryPicker();
-    await saveFolderHandle(rootHandle);
-    await scanFolder(rootHandle);
-    folderBtn.textContent = '📁 Change Folder';
-  } catch (err) {
-    console.log('Folder selection cancelled or failed', err);
-  }
+    loadTrack(currentTrack);
+    musicEl.play();
+    playerEl.style.display = 'flex';
+    changeAlbumBtn.style.display = 'block';
+    albumChoicesEl.style.display = 'none';
+  });
 });
-
-(async () => {
-  const savedHandle = await loadFolderHandle();
-  if (savedHandle) {
-    const ok = await verifyPermission(savedHandle);
-    if (ok) {
-      folderBtn.textContent = '📁 Change Folder';
-      await scanFolder(savedHandle);
-    }
-  }
-})();
 
 function renderPlaylist() {
   playlistEl.style.display = 'block';
